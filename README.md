@@ -7,25 +7,57 @@
 
 ---
 
-## راه‌اندازی سریع
+## نصب یک‌خطی
 
 ```bash
-# ۱. وابستگی‌ها
-npm install
+curl -fsSL https://raw.githubusercontent.com/MAHDI-byte64/Vps-sell/claude/compassionate-lovelace-4rr7wk/install.sh | bash
+```
 
-# ۲. تنظیمات محیط
+همین یک خط کد را clone می‌کند، وابستگی‌ها را نصب می‌کند، رمزهای امنیتی
+واقعی می‌سازد، PostgreSQL را بالا می‌آورد، جدول‌ها و داده‌های اولیه را
+می‌سازد و سایت را روی <http://localhost:3000> اجرا می‌کند.
+
+> اجرای اسکریپت از اینترنت با `| bash` را همیشه اول بخوانید. محتوای آن در
+> همین مخزن، فایل [`install.sh`](install.sh) است.
+
+اگر مخزن را از قبل clone کرده‌اید، از داخل همان پوشه:
+
+```bash
+./install.sh
+```
+
+**گزینه‌ها**
+
+| گزینه | کار |
+|---|---|
+| `--prod` | به‌جای سرور توسعه، بیلد production بگیر و اجرا کن |
+| `--no-start` | همه‌چیز را آماده کن ولی سرور را بالا نیاور |
+| `--db-url <url>` | به‌جای PostgreSQL داکری، از دیتابیس خودت استفاده کن |
+| `--dir <path>` | مسیر clone (پیش‌فرض: `vps-sell`) |
+| `--help` | راهنما |
+
+مثال با دیتابیس خودتان:
+
+```bash
+./install.sh --db-url postgresql://user:pass@host:5432/dbname --prod
+```
+
+اجرای دوباره امن است: فایل `.env` موجود هرگز بازنویسی نمی‌شود (چون عوض شدن
+`CREDENTIAL_SECRET` رمز همه سرورهای ذخیره‌شده را غیرقابل بازیابی می‌کند) و
+داده‌های اولیه upsert می‌شوند، پس داده‌های شما از بین نمی‌رود.
+
+### راه‌اندازی دستی
+
+اگر ترجیح می‌دهید مرحله‌به‌مرحله جلو بروید:
+
+```bash
+npm install
 cp .env.example .env
 # در .env مقدارهای AUTH_SECRET و CREDENTIAL_SECRET را عوض کنید:
 #   openssl rand -base64 48
-
-# ۳. دیتابیس (PostgreSQL روی داکر)
 docker compose up -d db
-
-# ۴. ساخت جدول‌ها و داده‌های اولیه
 npm run setup
-
-# ۵. اجرا
-npm run dev      # توسعه، روی http://localhost:3000
+npm run dev                  # توسعه، روی http://localhost:3000
 npm run build && npm start   # نسخه production
 ```
 
@@ -99,6 +131,7 @@ idempotent است و در یک تراکنش، کیف پول، وضعیت سفا�
 ## ساختار پروژه
 
 ```
+install.sh             نصب یک‌خطی (clone، نصب، دیتابیس، seed، اجرا)
 prisma/
   schema.prisma        مدل داده (۱۷ مدل)
   seed.ts              داده‌های اولیه: پلن‌ها، لوکیشن‌ها، بلاگ، حساب‌ها
@@ -132,6 +165,7 @@ src/
 | `npm start` | اجرای نسخه ساخته‌شده |
 | `npm run typecheck` | بررسی تایپ‌ها |
 | `npm run setup` | generate + db push + seed |
+| `./install.sh` | نصب کامل از صفر |
 | `npm run db:studio` | مرورگر گرافیکی دیتابیس |
 
 ---
