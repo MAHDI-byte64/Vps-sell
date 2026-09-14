@@ -1,0 +1,478 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   The palette is defined once in light values on :root, then re-stated for the
+   dark theme. `data-theme` wins in both directions so the header toggle can
+   override the OS preference, and the media query covers the "system" default.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #ecfeff;
+  --color-brand-100: #cffafe;
+  --color-brand-200: #a5f3fc;
+  --color-brand-300: #67e8f9;
+  --color-brand-400: #22d3ee;
+  --color-brand-500: #06b6d4;
+  --color-brand-600: #0891b2;
+  --color-brand-700: #0e7490;
+  --color-brand-800: #155e75;
+  --color-brand-900: #164e63;
+
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+}
+
+:root {
+  color-scheme: light;
+  --surface: #f6f8fb;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef2f7;
+  --line: #dde4ed;
+  --line-strong: #c4d0de;
+  --text: #0f172a;
+  --text-muted: #55637a;
+  --text-faint: #7a879c;
+  --brand: #0891b2;
+  --brand-contrast: #ffffff;
+  --brand-soft: #e0f7fb;
+  --ok: #047857;
+  --ok-soft: #d1fae5;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --danger: #be123c;
+  --danger-soft: #ffe4e6;
+  --info: #1d4ed8;
+  --info-soft: #dbeafe;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px -12px rgb(15 23 42 / 0.18);
+  --glow: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #070b14;
+    --surface-raised: #0e1626;
+    --surface-sunken: #0a1120;
+    --line: #1e2c44;
+    --line-strong: #2c3e5c;
+    --text: #e8eefc;
+    --text-muted: #93a3bf;
+    --text-faint: #6b7c99;
+    --brand: #22d3ee;
+    --brand-contrast: #04121a;
+    --brand-soft: #0b2d3a;
+    --ok: #34d399;
+    --ok-soft: #06301f;
+    --warn: #fbbf24;
+    --warn-soft: #34250a;
+    --danger: #fb7185;
+    --danger-soft: #3b0f1c;
+    --info: #60a5fa;
+    --info-soft: #0e2246;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 18px 40px -24px rgb(0 0 0 / 0.9);
+    --glow: rgb(34 211 238 / 0.16);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #070b14;
+  --surface-raised: #0e1626;
+  --surface-sunken: #0a1120;
+  --line: #1e2c44;
+  --line-strong: #2c3e5c;
+  --text: #e8eefc;
+  --text-muted: #93a3bf;
+  --text-faint: #6b7c99;
+  --brand: #22d3ee;
+  --brand-contrast: #04121a;
+  --brand-soft: #0b2d3a;
+  --ok: #34d399;
+  --ok-soft: #06301f;
+  --warn: #fbbf24;
+  --warn-soft: #34250a;
+  --danger: #fb7185;
+  --danger-soft: #3b0f1c;
+  --info: #60a5fa;
+  --info-soft: #0e2246;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 18px 40px -24px rgb(0 0 0 / 0.9);
+  --glow: rgb(34 211 238 / 0.16);
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+/* Persian copy reads better with slightly looser lines and no italics. */
+html[lang^="fa"] body {
+  line-height: 1.85;
+}
+html[lang^="fa"] i,
+html[lang^="fa"] em {
+  font-style: normal;
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Thin, theme-aware scrollbars so dark mode does not get a white gutter. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* ------------------------------- components ------------------------------ */
+
+@utility card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+@utility surface-sunken {
+  background: var(--surface-sunken);
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1.15rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.16s ease,
+      border-color 0.16s ease,
+      color 0.16s ease,
+      transform 0.12s ease,
+      opacity 0.16s ease;
+    border: 1px solid transparent;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--brand);
+    color: var(--brand-contrast);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .btn-outline {
+    border-color: var(--line-strong);
+    color: var(--text);
+    background: transparent;
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--surface-sunken);
+    border-color: var(--brand);
+  }
+
+  .btn-ghost {
+    color: var(--text-muted);
+    background: transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-sunken);
+    color: var(--text);
+  }
+
+  .btn-danger {
+    background: var(--danger);
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .btn-sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 0.6rem;
+  }
+  .btn-lg {
+    padding: 0.85rem 1.6rem;
+    font-size: 1rem;
+    border-radius: 0.9rem;
+  }
+
+  .input,
+  .select,
+  .textarea {
+    width: 100%;
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.9rem;
+    font-size: 0.9rem;
+    color: var(--text);
+    font-family: inherit;
+    transition:
+      border-color 0.16s ease,
+      background-color 0.16s ease;
+  }
+  .input::placeholder,
+  .textarea::placeholder {
+    color: var(--text-faint);
+  }
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    border-color: var(--brand);
+    outline: none;
+    background: var(--surface-raised);
+  }
+  .textarea {
+    min-height: 8rem;
+    resize: vertical;
+    line-height: 1.7;
+  }
+  /* One inline-SVG chevron, positioned with a logical property so it lands on
+     the correct side in both text directions without a second rule. */
+  .select {
+    appearance: none;
+    padding-inline-end: 2.4rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%2393a3bf' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+    background-size: 11px 7px;
+    background-repeat: no-repeat;
+    background-position-y: center;
+  }
+  .select {
+    background-position-x: right 0.9rem;
+  }
+  [dir="rtl"] .select {
+    background-position-x: left 0.9rem;
+  }
+
+  .label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .badge-ok {
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+  .badge-warn {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+  .badge-danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+  .badge-info {
+    background: var(--info-soft);
+    color: var(--info);
+  }
+  .badge-muted {
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+  }
+  .badge-brand {
+    background: var(--brand-soft);
+    color: var(--brand);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 1rem;
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+  }
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    min-width: 40rem;
+  }
+  .table thead th {
+    text-align: start;
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 0.85rem 1rem;
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .table tbody td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  .table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .table tbody tr:hover {
+    background: var(--surface-sunken);
+  }
+
+  .link {
+    color: var(--brand);
+    font-weight: 600;
+  }
+  .link:hover {
+    text-decoration: underline;
+  }
+
+  .prose-app {
+    line-height: 2;
+    color: var(--text-muted);
+  }
+  .prose-app h2 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text);
+    margin: 2rem 0 0.75rem;
+  }
+  .prose-app h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 1.5rem 0 0.5rem;
+  }
+  .prose-app p {
+    margin: 0.9rem 0;
+  }
+  .prose-app ul,
+  .prose-app ol {
+    margin: 0.9rem 0;
+    padding-inline-start: 1.5rem;
+  }
+  .prose-app ul {
+    list-style: disc;
+  }
+  .prose-app ol {
+    list-style: decimal;
+  }
+  .prose-app li {
+    margin: 0.35rem 0;
+  }
+  .prose-app code {
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.85em;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    direction: ltr;
+    display: inline-block;
+  }
+  .prose-app pre {
+    background: var(--surface-sunken);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    overflow-x: auto;
+    direction: ltr;
+    text-align: left;
+    margin: 1rem 0;
+  }
+  .prose-app pre code {
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+  .prose-app a {
+    color: var(--brand);
+    font-weight: 600;
+  }
+}
+
+/* Latin identifiers (IPs, hostnames, emails) must stay LTR inside RTL copy. */
+.ltr-text {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.hero-glow {
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, var(--glow), transparent 70%),
+    radial-gradient(40rem 20rem at 85% 10%, rgb(59 130 246 / 0.1), transparent 70%);
+}
+
+.grid-pattern {
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 3rem 3rem;
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 40%, transparent 100%);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+}
