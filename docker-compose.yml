@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: vpssell-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vpssell
+      POSTGRES_PASSWORD: vpssell_dev_password
+      POSTGRES_DB: vpssell
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vpssell -d vpssell"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: vpssell-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://vpssell:vpssell_dev_password@db:5432/vpssell?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-to-a-long-random-string-at-least-32-chars}
+      CREDENTIAL_SECRET: ${CREDENTIAL_SECRET:-change-me-too-another-long-random-string-32-chars}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    profiles:
+      - full
+
+volumes:
+  pgdata:

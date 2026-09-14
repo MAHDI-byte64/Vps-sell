@@ -1,0 +1,525 @@
+// ---------------------------------------------------------------------------
+// VPS-Sell — data model
+//
+// Money convention: every monetary column is an `Int` holding whole Tomans
+// (IRT). Toman is the settlement currency for orders, invoices and the wallet;
+// the English locale renders the same figures in USD using the admin-managed
+// `usd_rate` setting. Keeping one settlement currency keeps the ledger
+// (wallet balance vs. transactions) provably consistent.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------- enums ---------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProductType {
+  VPS_LINUX
+  VPS_WINDOWS
+  DEDICATED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum OrderStatus {
+  PENDING // created, invoice not paid yet
+  PAID // paid, waiting for the admin to hand over servers
+  PROVISIONING // admin picked it up
+  COMPLETED // every item delivered
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceType {
+  NEW_ORDER
+  RENEWAL
+  WALLET_TOPUP
+}
+
+enum PaymentMethod {
+  WALLET
+  GATEWAY // simulated gateway today, real PSP later
+  CARD_TRANSFER // card-to-card with a receipt the admin confirms
+  MANUAL // booked by an admin
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum WalletTxType {
+  DEPOSIT
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
+enum ServiceStatus {
+  PENDING // paid, not handed over yet
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  TERMINATED
+}
+
+enum TicketStatus {
+  OPEN
+  ANSWERED
+  CUSTOMER_REPLY
+  CLOSED
+}
+
+enum TicketDepartment {
+  SALES
+  TECHNICAL
+  BILLING
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+// ----------------------------- accounts ------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  role          Role      @default(USER)
+  walletBalance Int       @default(0) // Toman
+  emailVerified Boolean   @default(false)
+  active        Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orders        Order[]
+  invoices      Invoice[]
+  payments      Payment[]
+  services      Service[]
+  walletTxs     WalletTransaction[]
+  tickets       Ticket[]
+  ticketReplies TicketMessage[]
+  redemptions   CouponRedemption[]
+  posts         Post[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+// ----------------------------- catalogue -----------------------------------
+
+model Location {
+  id          String  @id @default(cuid())
+  code        String  @unique // e.g. "de-fsn"
+  nameFa      String
+  nameEn      String
+  countryCode String // ISO-3166 alpha-2, drives the flag
+  cityFa      String
+  cityEn      String
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  plans    Plan[]
+  items    OrderItem[]
+  services Service[]
+
+  @@map("locations")
+}
+
+model OperatingSystem {
+  id        String  @id @default(cuid())
+  slug      String  @unique // e.g. "ubuntu-24-04"
+  name      String // "Ubuntu 24.04 LTS"
+  family    String // "linux" | "windows"
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  items    OrderItem[]
+  services Service[]
+
+  @@map("operating_systems")
+}
+
+model Plan {
+  id     String      @id @default(cuid())
+  slug   String      @unique
+  type   ProductType @default(VPS_LINUX)
+  nameFa String
+  nameEn String
+  descFa String      @default("")
+  descEn String      @default("")
+
+  // hardware
+  cpuCores    Int
+  cpuNoteFa   String @default("")
+  cpuNoteEn   String @default("")
+  ramMb       Int
+  diskGb      Int
+  diskType    String @default("NVMe")
+  bandwidthGb Int // 0 means unmetered
+  portMbps    Int    @default(1000)
+  ipv4Count   Int    @default(1)
+
+  priceMonthly Int // Toman
+  setupFee     Int     @default(0)
+  stock        Int? // null = unlimited
+  active       Boolean @default(true)
+  featured     Boolean @default(false)
+  sortOrder    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations Location[]
+  items     OrderItem[]
+  services  Service[]
+
+  @@index([type, active])
+  @@map("plans")
+}
+
+// ----------------------------- commerce ------------------------------------
+
+model Order {
+  id     String      @id @default(cuid())
+  number String      @unique // human-facing, e.g. "ORD-100241"
+  userId String
+  status OrderStatus @default(PENDING)
+
+  subtotal Int
+  discount Int @default(0)
+  tax      Int @default(0)
+  total    Int
+
+  couponId  String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon  Coupon?     @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  items   OrderItem[]
+  invoice Invoice?
+
+  @@index([userId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+
+  planId     String
+  locationId String
+  osId       String
+
+  // Immutable copy of the plan as sold, so later catalogue edits never
+  // rewrite the history of an order.
+  planSnapshot Json
+
+  billingCycle BillingCycle @default(MONTHLY)
+  hostname     String?
+  quantity     Int          @default(1)
+  unitPrice    Int // price for one unit for the whole cycle
+  lineTotal    Int
+
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  plan     Plan            @relation(fields: [planId], references: [id])
+  location Location        @relation(fields: [locationId], references: [id])
+  os       OperatingSystem @relation(fields: [osId], references: [id])
+  services Service[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Invoice {
+  id      String        @id @default(cuid())
+  number  String        @unique // "INV-100241"
+  userId  String
+  orderId String?       @unique
+  type    InvoiceType   @default(NEW_ORDER)
+  status  InvoiceStatus @default(UNPAID)
+
+  subtotal Int
+  discount Int @default(0)
+  tax      Int @default(0)
+  total    Int
+
+  description String?
+  dueDate     DateTime
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payments  Payment[]
+  walletTxs WalletTransaction[]
+  service   Service?           @relation("RenewalInvoice")
+
+  @@index([userId, status])
+  @@map("invoices")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  invoiceId String
+  userId    String
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  amount    Int
+
+  reference     String? // gateway tracking id or bank reference
+  receiptNote   String? // what the customer typed for a card transfer
+  failureReason String?
+  confirmedById String?
+  confirmedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payments")
+}
+
+model WalletTransaction {
+  id           String       @id @default(cuid())
+  userId       String
+  type         WalletTxType
+  amount       Int // signed: credits are positive, debits negative
+  balanceAfter Int
+  description  String
+  invoiceId    String?
+  createdAt    DateTime     @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("wallet_transactions")
+}
+
+// ----------------------------- delivered services --------------------------
+
+model Service {
+  id          String  @id @default(cuid())
+  userId      String
+  orderItemId String?
+  planId      String
+  locationId  String
+  osId        String
+
+  label    String
+  hostname String?
+  ipv4     String?
+  ipv6     String?
+  sshPort  Int     @default(22)
+  username String  @default("root")
+
+  // Credentials are sealed with AES-256-GCM (see src/lib/crypto.ts) so a
+  // database dump alone does not hand over customer root passwords.
+  passwordEnc String?
+
+  status       ServiceStatus @default(PENDING)
+  billingCycle BillingCycle  @default(MONTHLY)
+  price        Int
+  autoRenew    Boolean       @default(true)
+
+  startsAt          DateTime?
+  expiresAt         DateTime?
+  suspendedAt       DateTime?
+  adminNote         String?
+  renewalInvoiceId  String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItem       OrderItem?      @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  plan            Plan            @relation(fields: [planId], references: [id])
+  location        Location        @relation(fields: [locationId], references: [id])
+  os              OperatingSystem @relation(fields: [osId], references: [id])
+  renewalInvoice  Invoice?        @relation("RenewalInvoice", fields: [renewalInvoiceId], references: [id], onDelete: SetNull)
+  tickets         Ticket[]
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("services")
+}
+
+// ----------------------------- support -------------------------------------
+
+model Ticket {
+  id        String           @id @default(cuid())
+  number    String           @unique // "TCK-100241"
+  userId    String
+  serviceId String?
+  subject   String
+  department TicketDepartment @default(TECHNICAL)
+  priority  TicketPriority   @default(NORMAL)
+  status    TicketStatus     @default(OPEN)
+
+  lastReplyAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service  Service?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  messages TicketMessage[]
+
+  @@index([userId, status])
+  @@index([status, lastReplyAt])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+// ----------------------------- marketing -----------------------------------
+
+model Coupon {
+  id    String     @id @default(cuid())
+  code  String     @unique
+  type  CouponType @default(PERCENT)
+  value Int // percent (1-100) or a flat amount in Toman
+
+  minOrder       Int? // minimum order subtotal
+  maxDiscount    Int? // cap applied to percent coupons
+  maxUses        Int? // null = unlimited
+  maxUsesPerUser Int      @default(1)
+  usedCount      Int      @default(0)
+  firstOrderOnly Boolean  @default(false)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  active         Boolean  @default(true)
+  descriptionFa  String   @default("")
+  descriptionEn  String   @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders      Order[]
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  userId    String
+  orderId   String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, orderId])
+  @@index([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+model Post {
+  id       String @id @default(cuid())
+  slug     String @unique
+  titleFa  String
+  titleEn  String
+  excerptFa String @default("")
+  excerptEn String @default("")
+  bodyFa   String @default("")
+  bodyEn   String @default("")
+  coverEmoji String @default("📘")
+  tags     String[] @default([])
+
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  viewCount   Int       @default(0)
+  authorId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([published, publishedAt])
+  @@map("posts")
+}
+
+// ----------------------------- ops -----------------------------------------
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
