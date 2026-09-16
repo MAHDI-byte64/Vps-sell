@@ -7,7 +7,13 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 
-process.loadEnvFile?.(".env");
+// Load .env when there is one. In Docker there is not — the values arrive as
+// real environment variables — and loadEnvFile throws on a missing file.
+try {
+  process.loadEnvFile?.(".env");
+} catch {
+  // no .env; rely on the ambient environment
+}
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

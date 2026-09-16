@@ -170,14 +170,46 @@ src/
 
 ---
 
-## استقرار با داکر
+## استقرار روی سرور
 
 ```bash
+git clone -b claude/compassionate-lovelace-4rr7wk \
+  https://github.com/MAHDI-byte64/Vps-sell.git && cd Vps-sell
+
+cat > .env <<EOF
+POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
+AUTH_SECRET=$(openssl rand -base64 48)
+CREDENTIAL_SECRET=$(openssl rand -base64 48)
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
+SEED_ADMIN_EMAIL=you@your-domain.com
+SEED_ADMIN_PASSWORD=a-strong-password
+EOF
+
 docker compose --profile full up -d --build
 ```
 
-پیش از این کار `AUTH_SECRET` و `CREDENTIAL_SECRET` را در محیط تنظیم کنید،
-و رمز PostgreSQL را در `docker-compose.yml` عوض کنید.
+سه سرویس بالا می‌آیند و به‌ترتیب اجرا می‌شوند:
+
+1. `db` — PostgreSQL، تا زمانی که healthcheck سبز نشده بقیه صبر می‌کنند
+2. `migrate` — یک‌بار اجرا می‌شود، جدول‌ها را می‌سازد و کاتالوگ را seed می‌کند
+3. `app` — فقط بعد از پایان موفق `migrate` بالا می‌آید
+
+`docker compose` فایل `.env` را خودش می‌خواند. اگر `AUTH_SECRET` یا
+`CREDENTIAL_SECRET` تنظیم نشده باشد، استقرار با پیام روشن متوقف می‌شود و
+سایت با رمز قابل حدس بالا نمی‌آید.
+
+سایت روی پورت ۳۰۰۰ گوش می‌دهد. برای دامنه و HTTPS یک reverse proxy
+(Caddy یا Nginx) جلویش بگذارید — مثلاً با Caddy کل کار یک خط است:
+
+```caddyfile
+your-domain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+**بعد از اولین بالا آمدن:** با حساب مدیر وارد شوید، رمز را از
+`/fa/dashboard/profile` عوض کنید، و در `/fa/admin/settings` نرخ دلار،
+شماره کارت و اطلاعات تماس را تنظیم کنید.
 
 ---
 
