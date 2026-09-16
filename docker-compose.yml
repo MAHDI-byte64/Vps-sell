@@ -4,36 +4,58 @@ services:
     container_name: vpssell-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: vpssell
-      POSTGRES_PASSWORD: vpssell_dev_password
-      POSTGRES_DB: vpssell
+      POSTGRES_USER: ${POSTGRES_USER:-vpssell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vpssell_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vpssell}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vpssell -d vpssell"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vpssell} -d ${POSTGRES_DB:-vpssell}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  app:
-    build: .
-    container_name: vpssell-app
-    restart: unless-stopped
+  # Runs once per `up`, before the app: applies the schema and seeds the
+  # catalogue. Without this the app would start against an empty database.
+  # Both commands are idempotent, so repeated runs are harmless.
+  migrate:
+    build:
+      context: .
+      target: builder
+    container_name: vpssell-migrate
+    profiles: [full]
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://vpssell:vpssell_dev_password@db:5432/vpssell?schema=public
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-to-a-long-random-string-at-least-32-chars}
-      CREDENTIAL_SECRET: ${CREDENTIAL_SECRET:-change-me-too-another-long-random-string-32-chars}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vpssell}:${POSTGRES_PASSWORD:-vpssell_dev_password}@db:5432/${POSTGRES_DB:-vpssell}?schema=public
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@vpssell.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+    command: sh -c "npx prisma db push && npx tsx prisma/seed.ts"
+
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: vpssell-app
+    profiles: [full]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vpssell}:${POSTGRES_PASSWORD:-vpssell_dev_password}@db:5432/${POSTGRES_DB:-vpssell}?schema=public
+      AUTH_SECRET: "${AUTH_SECRET:?generate one with openssl rand -base64 48}"
+      CREDENTIAL_SECRET: "${CREDENTIAL_SECRET:?generate one with openssl rand -base64 48}"
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       NODE_ENV: production
     ports:
-      - "3000:3000"
-    profiles:
-      - full
+      - "${APP_PORT:-3000}:3000"
 
 volumes:
   pgdata:
