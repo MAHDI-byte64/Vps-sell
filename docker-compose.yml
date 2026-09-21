@@ -1,0 +1,88 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: vpssell-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vpssell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vpssell_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vpssell}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vpssell} -d ${POSTGRES_DB:-vpssell}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs once per `up`, before the app: applies the schema and seeds the
+  # catalogue. Without this the app would start against an empty database.
+  # Both commands are idempotent, so repeated runs are harmless.
+  migrate:
+    build:
+      context: .
+      target: builder
+    container_name: vpssell-migrate
+    profiles: [full]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vpssell}:${POSTGRES_PASSWORD:-vpssell_dev_password}@db:5432/${POSTGRES_DB:-vpssell}?schema=public
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@vpssell.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+    command: sh -c "npx prisma db push && npx tsx prisma/seed.ts"
+
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: vpssell-app
+    profiles: [full]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vpssell}:${POSTGRES_PASSWORD:-vpssell_dev_password}@db:5432/${POSTGRES_DB:-vpssell}?schema=public
+      AUTH_SECRET: "${AUTH_SECRET:?generate one with openssl rand -base64 48}"
+      CREDENTIAL_SECRET: "${CREDENTIAL_SECRET:?generate one with openssl rand -base64 48}"
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NODE_ENV: production
+    ports:
+      # Bound to loopback only: the public port is Caddy's 443, not this one.
+      # Still reachable on the server itself for a quick `curl localhost:3000`.
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+
+  # Fronts `app` with HTTPS. DOMAIN/SSL_EMAIL default to empty here — never
+  # required — so any other compose command in this project (e.g. the local
+  # `docker compose up -d db` the installer uses) keeps working without a
+  # domain. deploy.sh is what actually enforces both are set, before it ever
+  # calls compose.
+  caddy:
+    image: caddy:2-alpine
+    container_name: vpssell-caddy
+    profiles: [full]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      SSL_EMAIL: ${SSL_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
