@@ -7,7 +7,16 @@
 
 ---
 
-## نصب یک‌خطی
+## دو راه نصب
+
+- **می‌خواهید روی لپ‌تاپ/سرور خودتان تست کنید، بدون دامنه؟** بخش زیر
+  (`install.sh`) را دنبال کنید.
+- **می‌خواهید سایت واقعاً آنلاین شود، با دامنه و قفل سبز؟** برای این کار
+  یک سرور و یک دامنه لازم دارید؛ به بخش
+  «[استقرار روی سرور واقعی](#استقرار-روی-سرور-واقعی--با-دامنه-و-ssl-خودکار)»
+  و اسکریپت `deploy.sh` بروید.
+
+## نصب یک‌خطی (محلی، بدون دامنه)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MAHDI-byte64/Vps-sell/claude/compassionate-lovelace-4rr7wk/install.sh | bash
@@ -131,7 +140,9 @@ idempotent است و در یک تراکنش، کیف پول، وضعیت سفا�
 ## ساختار پروژه
 
 ```
-install.sh             نصب یک‌خطی (clone، نصب، دیتابیس، seed، اجرا)
+install.sh             نصب محلی/توسعه، بدون دامنه (clone، نصب، دیتابیس، seed، اجرا)
+deploy.sh               استقرار production روی سرور واقعی، با دامنه و SSL خودکار
+Caddyfile               تنظیمات وب‌سرور Caddy — HTTPS خودکار از deploy.sh
 prisma/
   schema.prisma        مدل داده (۱۷ مدل)
   seed.ts              داده‌های اولیه: پلن‌ها، لوکیشن‌ها، بلاگ، حساب‌ها
@@ -165,21 +176,58 @@ src/
 | `npm start` | اجرای نسخه ساخته‌شده |
 | `npm run typecheck` | بررسی تایپ‌ها |
 | `npm run setup` | generate + db push + seed |
-| `./install.sh` | نصب کامل از صفر |
+| `./install.sh` | نصب محلی/توسعه — بدون دامنه |
+| `./deploy.sh` | استقرار production — با دامنه و SSL |
 | `npm run db:studio` | مرورگر گرافیکی دیتابیس |
 
 ---
 
-## استقرار روی سرور
+## استقرار روی سرور واقعی — با دامنه و SSL خودکار
+
+پیش‌نیاز: یک سرور اوبونتو/دبیان و یک دامنه که DNS آن (رکورد A) را به آی‌پی
+همین سرور اشاره داده‌اید. با SSH وارد سرور شوید و:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MAHDI-byte64/Vps-sell/claude/compassionate-lovelace-4rr7wk/deploy.sh | sudo bash
+```
+
+همین یک دستور روی سرور خالی همه‌چیز را انجام می‌دهد: بررسی DNS، نصب
+Docker، تنظیم فایروال (ufw)، افزودن swap اگر رم کم باشد، آوردن کد،
+ساخت رمزهای واقعی، بیلد و اجرا — و **Caddy** به‌عنوان وب‌سرور جلویی،
+گواهی SSL رایگان (Let's Encrypt) را خودش از دامنه‌ای که وارد می‌کنید
+می‌گیرد و تمدید می‌کند. دامنه و ایمیل را یا با فلگ بدهید:
+
+```bash
+curl -fsSL .../deploy.sh | sudo bash -s -- --domain abrserver.ir --email you@example.com
+```
+
+یا وقتی بدون فلگ اجرا شود و ترمینال واقعی داشته باشید (یعنی از طریق SSH
+مستقیم، نه یک اسکریپت خودکار دیگر)، خودش همین دو مورد را می‌پرسد.
+
+**این اسکریپت دامنه را برایتان نمی‌خرد** — خرید دامنه نیاز به حساب کاربری
+در یک ثبت‌کننده و کارت بانکی دارد که هیچ اسکریپتی نباید از شما بخواهد.
+دامنه را جداگانه بخرید، رکورد A آن را به آی‌پی سرور بدهید، بعد این دستور
+را اجرا کنید.
+
+اجرای دوباره‌اش امن است: فقط کد را به‌روزرسانی می‌کند؛ `.env` (و رمزهای
+داخلش) دست‌نخورده می‌ماند.
+
+جزئیات هر مرحله در [`deploy.sh`](deploy.sh) مستند شده است.
+
+### دستی، مرحله‌به‌مرحله
+
+اگر ترجیح می‌دهید خودتان کنترل کنید:
 
 ```bash
 git clone -b claude/compassionate-lovelace-4rr7wk \
   https://github.com/MAHDI-byte64/Vps-sell.git && cd Vps-sell
 
 cat > .env <<EOF
-POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
 AUTH_SECRET=$(openssl rand -base64 48)
 CREDENTIAL_SECRET=$(openssl rand -base64 48)
+DOMAIN=your-domain.com
+SSL_EMAIL=you@your-domain.com
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 SEED_ADMIN_EMAIL=you@your-domain.com
 SEED_ADMIN_PASSWORD=a-strong-password
@@ -188,24 +236,24 @@ EOF
 docker compose --profile full up -d --build
 ```
 
-سه سرویس بالا می‌آیند و به‌ترتیب اجرا می‌شوند:
+چهار سرویس بالا می‌آیند و به‌ترتیب اجرا می‌شوند:
 
 1. `db` — PostgreSQL، تا زمانی که healthcheck سبز نشده بقیه صبر می‌کنند
 2. `migrate` — یک‌بار اجرا می‌شود، جدول‌ها را می‌سازد و کاتالوگ را seed می‌کند
-3. `app` — فقط بعد از پایان موفق `migrate` بالا می‌آید
+3. `app` — فقط بعد از پایان موفق `migrate` بالا می‌آید، و فقط روی
+   `127.0.0.1:3000` منتشر می‌شود (نه روی اینترنت — فقط Caddy عمومی است)
+4. `caddy` — روی پورت ۸۰ و ۴۴۳ گوش می‌دهد، ترافیک را به `app` می‌فرستد و
+   خودش گواهی SSL دامنه‌ی `DOMAIN` را از Let's Encrypt می‌گیرد
 
 `docker compose` فایل `.env` را خودش می‌خواند. اگر `AUTH_SECRET` یا
 `CREDENTIAL_SECRET` تنظیم نشده باشد، استقرار با پیام روشن متوقف می‌شود و
-سایت با رمز قابل حدس بالا نمی‌آید.
+سایت با رمز قابل حدس بالا نمی‌آید. توجه: رمز `POSTGRES_PASSWORD` باید فقط
+حروف و عدد باشد — نویسه‌های `/`، `+` و `=` که `openssl rand -base64`
+معمولاً تولید می‌کند، رشته‌ی اتصال به دیتابیس را می‌شکنند.
 
-سایت روی پورت ۳۰۰۰ گوش می‌دهد. برای دامنه و HTTPS یک reverse proxy
-(Caddy یا Nginx) جلویش بگذارید — مثلاً با Caddy کل کار یک خط است:
-
-```caddyfile
-your-domain.com {
-    reverse_proxy localhost:3000
-}
-```
+با DNS نادرست یا نبودِ DOMAIN/SSL_EMAIL، Caddy فقط لاگ خطا می‌زند و دوباره
+تلاش می‌کند — سایت را از کار نمی‌اندازد؛ برای دیدن وضعیتش:
+`docker compose logs -f caddy`
 
 **بعد از اولین بالا آمدن:** با حساب مدیر وارد شوید، رمز را از
 `/fa/dashboard/profile` عوض کنید، و در `/fa/admin/settings` نرخ دلار،

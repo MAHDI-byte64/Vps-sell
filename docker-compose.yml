@@ -55,7 +55,34 @@ services:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       NODE_ENV: production
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # Bound to loopback only: the public port is Caddy's 443, not this one.
+      # Still reachable on the server itself for a quick `curl localhost:3000`.
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+
+  # Fronts `app` with HTTPS. DOMAIN/SSL_EMAIL default to empty here — never
+  # required — so any other compose command in this project (e.g. the local
+  # `docker compose up -d db` the installer uses) keeps working without a
+  # domain. deploy.sh is what actually enforces both are set, before it ever
+  # calls compose.
+  caddy:
+    image: caddy:2-alpine
+    container_name: vpssell-caddy
+    profiles: [full]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      SSL_EMAIL: ${SSL_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

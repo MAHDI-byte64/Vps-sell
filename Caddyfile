@@ -1,0 +1,24 @@
+# Caddy config for production. Values come from the environment (compose
+# passes DOMAIN and SSL_EMAIL through) using Caddyfile's {$VAR} substitution.
+#
+# Caddy issues and renews the Let's Encrypt certificate itself, redirects
+# HTTP to HTTPS automatically, and needs no other web server on the box.
+
+{
+	email {$SSL_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+
+	header {
+		# Caddy already terminates TLS; hide the app's own framework
+		# fingerprint on the public-facing edge.
+		-Server
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
