@@ -36,4 +36,7 @@ export const env = {
   ),
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   isProd,
+  // Optional: only the supplier-sync admin page needs this. Its absence
+  // disables that feature rather than failing the whole app to build/boot.
+  radibApiToken: process.env.RADIB_API_TOKEN ?? null,
 };

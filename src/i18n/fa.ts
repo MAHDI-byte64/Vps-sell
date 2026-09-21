@@ -405,6 +405,23 @@ export const fa = {
     reason: "دلیل",
     pendingPaymentsTitle: "پرداخت‌های در انتظار تایید",
     noPendingPayments: "پرداخت در انتظار تاییدی وجود ندارد.",
+    supplier: {
+      title: "همگام‌سازی تأمین‌کننده",
+      subtitle:
+        "کاتالوگ و قیمت تأمین‌کننده را بخوانید و خودتان تصمیم بگیرید کدام محصول روی سایت نمایش داده شود.",
+      syncNow: "همگام‌سازی الان",
+      lastSync: "آخرین همگام‌سازی",
+      notConfigured: "توکن API تأمین‌کننده تنظیم نشده است (RADIB_API_TOKEN در .env).",
+      syncFailed: "اتصال به API تأمین‌کننده ناموفق بود. دوباره تلاش کنید.",
+      syncSummary: "همگام‌سازی انجام شد — {created} محصول جدید، {updated} به‌روزرسانی، {refreshed} قیمت پلن فعال تغییر کرد.",
+      empty: "هنوز همگام‌سازی انجام نشده است.",
+      parsedSpec: "مشخصات حدسی",
+      notLinked: "لینک‌نشده",
+      linkedDraft: "پلن پیش‌نویس",
+      linkedActive: "پلن فعال",
+      createPlan: "ایجاد/ویرایش پلن",
+      unlink: "قطع اتصال",
+    },
   },
   orderStatus: {
     PENDING: "در انتظار پرداخت",

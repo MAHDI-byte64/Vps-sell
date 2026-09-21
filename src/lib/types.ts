@@ -21,6 +21,7 @@ export type {
   PostModel as Post,
   SettingModel as Setting,
   AuditLogModel as AuditLog,
+  SupplierProductModel as SupplierProduct,
 } from "@/generated/prisma/models";
 
 export type {

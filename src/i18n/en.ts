@@ -408,6 +408,23 @@ export const en: Dictionary = {
     reason: "Reason",
     pendingPaymentsTitle: "Payments awaiting confirmation",
     noPendingPayments: "No payments are waiting for confirmation.",
+    supplier: {
+      title: "Supplier sync",
+      subtitle:
+        "Pull the supplier's catalogue and pricing, and decide yourself what actually goes live on the site.",
+      syncNow: "Sync now",
+      lastSync: "Last synced",
+      notConfigured: "The supplier API token is not set (RADIB_API_TOKEN in .env).",
+      syncFailed: "Could not reach the supplier API. Try again.",
+      syncSummary: "Sync complete — {created} new, {updated} updated, {refreshed} active plan prices changed.",
+      empty: "Nothing has been synced yet.",
+      parsedSpec: "Guessed specs",
+      notLinked: "Not linked",
+      linkedDraft: "Draft plan",
+      linkedActive: "Active plan",
+      createPlan: "Create/edit plan",
+      unlink: "Unlink",
+    },
   },
   orderStatus: {
     PENDING: "Awaiting payment",

@@ -61,6 +61,7 @@ export default async function AdminLayout({
     },
     { href: `/${locale}/admin/users`, label: dict.admin.users, icon: "users" },
     { href: `/${locale}/admin/plans`, label: dict.admin.plans, icon: "plans" },
+    { href: `/${locale}/admin/supplier`, label: dict.admin.supplier.title, icon: "supplier" },
     { href: `/${locale}/admin/coupons`, label: dict.admin.coupons, icon: "coupons" },
     { href: `/${locale}/admin/posts`, label: dict.admin.posts, icon: "posts" },
     { href: `/${locale}/admin/settings`, label: dict.admin.settings, icon: "settings" },

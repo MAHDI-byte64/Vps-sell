@@ -210,6 +210,7 @@ model Plan {
   locations Location[]
   items     OrderItem[]
   services  Service[]
+  supplierProduct SupplierProduct?
 
   @@index([type, active])
   @@map("plans")
@@ -522,4 +523,50 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ----------------------------- supplier sync --------------------------------
+//
+// A read-only mirror of an upstream reseller's product feed (e.g. Radib's
+// "representative" API). Every fetched product lands here regardless of
+// category — nothing here is customer-facing on its own. An admin picks
+// which rows actually become a `Plan` (via `linkedPlanId`); once linked, a
+// later sync only refreshes that plan's price, never its specs or whether
+// it is published, so a re-sync can never surprise the storefront with an
+// unreviewed product or a silently changed spec.
+
+model SupplierProduct {
+  id           String  @id @default(cuid())
+  supplierSlug String  @default("radib") // room for more than one supplier later
+  externalId   String // the feed's own product id (Radib: "page_unique")
+
+  title        String
+  categoryName String
+  currentPrice Int // Toman, as the supplier reports it
+  shortDesc    String @default("")
+  specRaw      Json // the feed's raw, per-category "spec" object
+  pageUrl      String @default("")
+  imageUrl     String?
+  availability Boolean @default(true)
+
+  // Best-effort extraction from shortDesc/specRaw — regex over free-text
+  // Persian, so never trusted as-is. Only ever used to pre-fill the plan
+  // editor for a human to confirm; a linked plan's own fields are the
+  // source of truth from that point on.
+  parsedCpuCores     Int?
+  parsedRamMb        Int?
+  parsedDiskGb       Int?
+  parsedBandwidthGb  Int?
+  parsedIpv4Count    Int?
+  parsedLocationHint String?
+
+  linkedPlanId String? @unique
+  linkedPlan   Plan?   @relation(fields: [linkedPlanId], references: [id], onDelete: SetNull)
+
+  firstSeenAt  DateTime @default(now())
+  lastSyncedAt DateTime @updatedAt
+
+  @@unique([supplierSlug, externalId])
+  @@index([categoryName])
+  @@map("supplier_products")
 }
